@@ -16,6 +16,12 @@
     },
     "plugins": [
       "expo-asset"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "55f5894c-7555-40d9-8a9a-b027d0c32e09"
+      }
+    },
+    "owner": "manvi89"
   }
 }
