@@ -181,20 +181,65 @@ export function CalendarPicker({ value, value2, onChange, onChangeEnd, label }) 
   const prevM = () => setCur((c) => c.m === 0 ? { y: c.y-1, m: 11 } : { y: c.y, m: c.m-1 });
   const nextM = () => setCur((c) => c.m === 11 ? { y: c.y+1, m: 0 } : { y: c.y, m: c.m+1 });
 
-  const fmtDisplay = (isoStr) => { if (!isoStr) return ''; const [y, m, d] = isoStr.split('-'); return `${d}-${m}-${y}`; };
-  const displayLabel = value
-    ? (value2 ? `${fmtDisplay(value)}  →  ${fmtDisplay(value2)}` : fmtDisplay(value))
-    : (label || 'Select date');
+  const fmtDisplay = (isoStr) => { if (!isoStr) return ''; const [y, m, d] = isoStr.split('-'); return `${d}/${m}/${y}`; };
+  const parseManual = (text) => {
+    const parts = text.split('/');
+    if (parts.length === 3) {
+      const [d, m, y] = parts.map(Number);
+      if (y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= new Date(y, m, 0).getDate()) {
+        return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      }
+    }
+    return null;
+  };
+  const [textInput, setTextInput] = useState(value ? fmtDisplay(value) : '');
+  const [inputError, setInputError] = useState(false);
+
+  React.useEffect(() => { setTextInput(value ? fmtDisplay(value) : ''); setInputError(false); }, [value]);
+
+  const handleTextChange = (text) => {
+    setTextInput(text);
+    setInputError(false);
+    const iso = parseManual(text);
+    if (iso) { onChange(iso); if (onChangeEnd) onChangeEnd(''); }
+    else if (text.length === 0) { onChange(''); if (onChangeEnd) onChangeEnd(''); }
+  };
+  const handleTextBlur = () => {
+    if (textInput.length > 0 && !parseManual(textInput)) setInputError(true);
+  };
+
+  const displayLabel = value2 ? `${fmtDisplay(value)}  →  ${fmtDisplay(value2)}` : null;
 
   return (
     <View style={{ marginBottom: 12 }}>
-      <TouchableOpacity onPress={() => setOpen((v) => !v)}
-        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-          backgroundColor: '#fff', borderWidth: 1, borderColor: open ? C.gold : C.line,
+      {displayLabel ? (
+        <TouchableOpacity onPress={() => setOpen((v) => !v)}
+          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+            backgroundColor: '#fff', borderWidth: 1, borderColor: open ? C.gold : C.line,
+            borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 }}>
+          <Text style={{ color: C.text, fontSize: 15 }}>{displayLabel}</Text>
+          <Text style={{ color: C.gold, fontSize: 16 }}>📅</Text>
+        </TouchableOpacity>
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center',
+          backgroundColor: '#fff', borderWidth: 1, borderColor: inputError ? C.red : open ? C.gold : C.line,
           borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 }}>
-        <Text style={{ color: value ? C.text : '#9AA7B4', fontSize: 15 }}>{displayLabel}</Text>
-        <Text style={{ color: C.gold, fontSize: 16 }}>📅</Text>
-      </TouchableOpacity>
+          <TextInput
+            value={textInput}
+            onChangeText={handleTextChange}
+            onBlur={handleTextBlur}
+            onFocus={() => setOpen(false)}
+            placeholder="DD/MM/YYYY"
+            placeholderTextColor="#9AA7B4"
+            style={{ flex: 1, fontSize: 15, color: C.text, padding: 0 }}
+            maxLength={10}
+            keyboardType="numeric"
+          />
+          <TouchableOpacity onPress={() => setOpen((v) => !v)}>
+            <Text style={{ color: C.gold, fontSize: 16 }}>📅</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {open && (
         <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: C.line, borderRadius: 12, marginTop: 4, padding: 10 }}>

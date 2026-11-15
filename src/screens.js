@@ -13,9 +13,32 @@ import { addMonths, calc, confirm, dmy, inr, monthsBetween, nextCustomerSerial, 
 const METALS = ['Gold', 'Silver', 'Others'];
 const PAY_METHODS = ['Cash', 'UPI', 'Bank'];
 
+const FAB_SECTIONS = [
+  { title: 'Sale Transactions', color: '#1A6FA8', items: [
+    { label: 'Sale Invoices', icon: '🧾', key: 'saleInvoice' },
+    { label: 'Payment-In', icon: '💵', key: 'paymentIn' },
+    { label: 'Dr. Note / Sale Return', icon: '↩️', key: 'saleReturn' },
+    { label: 'Sale Order', icon: '📋', key: 'saleOrder' },
+    { label: 'Estimate / Quotation', icon: '📝', key: 'estimate' },
+    { label: 'Mobile POS', icon: '📱', key: 'mobilePOS' },
+  ]},
+  { title: 'Purchase Transactions', color: '#1E8A58', items: [
+    { label: 'Purchase', icon: '🛒', key: 'purchase' },
+    { label: 'Payment-Out', icon: '💸', key: 'paymentOut' },
+    { label: 'Dr. Note / Purchase Return', icon: '↩️', key: 'purchaseReturn' },
+    { label: 'Purchase Order', icon: '📦', key: 'purchaseOrder' },
+  ]},
+  { title: 'Other Transactions', color: '#B8912F', items: [
+    { label: 'Expenses', icon: '💳', key: 'expenses' },
+    { label: 'Party To Party Transfer', icon: '🔄', key: 'partyTransfer' },
+    { label: 'Other Income', icon: '💰', key: 'otherIncome' },
+  ]},
+];
+
 /* ---------- HomeScreen (K Jewels UI) ---------- */
 export function HomeScreen({ db, update, go }) {
   const [activeTab, setActiveTab] = useState('Parties');
+  const [fabOpen, setFabOpen] = useState(false);
   const [searchQ, setSearchQ] = useState('');
 
   // Compute summary values from real data
@@ -146,11 +169,42 @@ export function HomeScreen({ db, update, go }) {
           style={{ flex: 1, backgroundColor: C.red, borderRadius: 25, paddingVertical: 14, alignItems: 'center' }}>
           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>New Loan</Text>
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => go('loanForm')}
+        <TouchableOpacity onPress={() => setFabOpen(true)}
           style={{ width: 48, height: 48, borderRadius: 24, borderWidth: 2, borderColor: '#1A6FA8',
             alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' }}>
           <Text style={{ color: '#1A6FA8', fontSize: 24, fontWeight: '300', lineHeight: 28 }}>+</Text>
         </TouchableOpacity>
+
+        <Modal visible={fabOpen} transparent animationType="slide" onRequestClose={() => setFabOpen(false)}>
+          <TouchableOpacity style={{ flex: 1, backgroundColor: '#0006' }} activeOpacity={1} onPress={() => setFabOpen(false)} />
+          <View style={{ backgroundColor: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, paddingBottom: 32, maxHeight: '85%' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingVertical: 14, borderBottomWidth: 1, borderColor: '#E8EDF2' }}>
+              <Text style={{ fontSize: 16, fontWeight: '700', color: C.navy }}>Add Transaction</Text>
+              <TouchableOpacity onPress={() => setFabOpen(false)}>
+                <Text style={{ fontSize: 22, color: C.mute, lineHeight: 26 }}>x</Text>
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 10 }}>
+              {FAB_SECTIONS.map((sec) => (
+                <View key={sec.title} style={{ marginBottom: 14 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: sec.color, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>{sec.title}</Text>
+                  <View style={{ backgroundColor: '#F7FAFF', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#E8EDF2' }}>
+                    {sec.items.map((item, idx) => (
+                      <TouchableOpacity key={item.key}
+                        onPress={() => { setFabOpen(false); go(item.key); }}
+                        style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, paddingVertical: 13,
+                          borderBottomWidth: idx < sec.items.length - 1 ? 1 : 0, borderColor: '#E8EDF2', backgroundColor: '#fff' }}>
+                        <Text style={{ fontSize: 18, marginRight: 12 }}>{item.icon}</Text>
+                        <Text style={{ fontSize: 14, color: C.text, fontWeight: '500' }}>{item.label}</Text>
+                        <Text style={{ marginLeft: 'auto', color: C.mute, fontSize: 16 }}>›</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              ))}
+            </ScrollView>
+          </View>
+        </Modal>
         <TouchableOpacity onPress={() => go('dayEntry')}
           style={{ flex: 1, backgroundColor: C.navy, borderRadius: 25, paddingVertical: 14, alignItems: 'center' }}>
           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 14 }}>Day Entry</Text>
@@ -617,11 +671,31 @@ export function CustomerEdit({ db, update, back, id }) {
 }
 
 /* ---------- Loans ---------- */
-export function Loans({ db, go }) {
+export function Loans({ db, update, go }) {
   const [q, setQ] = useState(''); const [tab, setTab] = useState('active');
+  const [delPwVisible, setDelPwVisible] = useState(false);
+  const [pendingDelId, setPendingDelId] = useState(null);
   const list = db.loans.filter((l) => l.status === tab && (cname(db, l.customerId) + l.no).toLowerCase().includes(q.toLowerCase()));
+
+  const doDelete = (id) => {
+    confirm('Delete this loan and all its payments?', async () => {
+      await update((d) => ({
+        ...d,
+        loans: d.loans.filter((x) => x.id !== id),
+        payments: d.payments.filter((p) => p.loanId !== id),
+      }));
+    }, 'Delete');
+  };
+  const requestDelete = (id) => {
+    if (db.editPassword) { setPendingDelId(id); setDelPwVisible(true); }
+    else doDelete(id);
+  };
+
   return (
     <Page>
+      <PasswordModal visible={delPwVisible} storedPassword={db.editPassword}
+        onOk={() => { setDelPwVisible(false); doDelete(pendingDelId); }}
+        onCancel={() => setDelPwVisible(false)} title="Enter password to delete loan" />
       <Field label="" value={q} onChangeText={setQ} placeholder="Search by customer or loan no." />
       <View style={{ flexDirection: 'row', marginBottom: 8 }}>
         {['active', 'closed'].map((t) => <Btn key={t} title={t === 'active' ? 'Active' : 'Closed'} kind={tab === t ? undefined : 'ghost'} onPress={() => setTab(t)} style={{ flex: 1, marginHorizontal: 3 }} />)}
@@ -630,9 +704,17 @@ export function Loans({ db, go }) {
       {list.length === 0 ? <Empty text="No loans here." /> : null}
       {list.map((l) => { const c = calc(l, db.payments); const cust = db.customers.find((x) => x.id === l.customerId) || {}; return (
         <Card key={l.id} onPress={() => go('loan', { id: l.id })}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontWeight: '700' }}>{l.no} · {cust.name || 'Unknown'}</Text>
-            {c.overdue ? <Chip text="Overdue" color={C.red} /> : null}
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontWeight: '700', flex: 1 }}>{l.no} · {cust.name || 'Unknown'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {c.overdue ? <Chip text="Overdue" color={C.red} /> : null}
+              <TouchableOpacity onPress={() => go('loan', { id: l.id })} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: C.gold }}>
+                <Text style={{ color: C.gold, fontWeight: '700', fontSize: 12 }}>Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={() => requestDelete(l.id)} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: C.red }}>
+                <Text style={{ color: C.red, fontWeight: '700', fontSize: 12 }}>Delete</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           {cust.custNo ? <Text style={{ color: C.gold, fontSize: 12, fontWeight: '600', marginBottom: 2 }}>{cust.custNo}</Text> : null}
           <Row a="Principal" b={inr(l.principal)} /><Row a="Outstanding" b={inr(c.outstanding)} bold />
@@ -641,7 +723,7 @@ export function Loans({ db, go }) {
   );
 }
 
-const EMPTY_ORNAMENT = { desc: '', weight: '', purity: '22', metal: 'Gold' };
+const EMPTY_ORNAMENT = { desc: '', weight: '', purity: '22', metal: 'Gold', netWeight: '', grossWeight: '', silverPurity: '', materialType: '' };
 
 export function LoanForm({ db, update, back, go }) {
   const cfg = db.settings || {};
@@ -720,14 +802,13 @@ export function LoanForm({ db, update, back, go }) {
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Due date</Text>
-          <CalendarPicker value={f.dueDate} onChange={set('dueDate')} label="Select due date" />
+          <CalendarPicker value={f.dueDate} onChange={set('dueDate')} label="DD/MM/YYYY" />
         </View>
       </View>
 
       <Text style={{ fontWeight: '700', color: C.text, marginBottom: 6 }}>Gold ornaments</Text>
       {ornaments.map((o, i) => {
         const metal = o.metal || 'Gold';
-        const showPurity = metal === 'Gold';
         return (
           <View key={i} style={{ backgroundColor: C.goldSoft, borderRadius: 10, padding: 10, marginBottom: 8, borderWidth: 1, borderColor: C.gold + '55' }}>
             {/* Title + Remove row */}
@@ -750,13 +831,25 @@ export function LoanForm({ db, update, back, go }) {
                 </TouchableOpacity>
               ))}
             </View>
-            <SuggestField label="Description" value={o.desc} onChangeText={(v) => setOrn(i, 'desc', v)} suggestions={suggestions} placeholder={metal === 'Gold' ? 'e.g. Gold chain' : metal === 'Silver' ? 'e.g. Silver anklet' : 'e.g. Platinum ring'} />
+            <SuggestField label="Description" value={o.desc} onChangeText={(v) => setOrn(i, 'desc', v)} suggestions={suggestions} placeholder={metal === 'Gold' ? 'e.g. Gold chain' : metal === 'Silver' ? 'e.g. Silver anklet' : 'e.g. Other item'} />
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               <View style={{ flex: 1, minWidth: 120 }}><Field label="Weight (g)" value={o.weight} onChangeText={(v) => setOrn(i, 'weight', v)} keyboardType="decimal-pad" /></View>
-              {showPurity && (
+              {metal === 'Gold' && (
                 <View style={{ flex: 1, minWidth: 120 }}><Field label="Purity (K)" value={o.purity} onChangeText={(v) => setOrn(i, 'purity', v)} keyboardType="decimal-pad" /></View>
               )}
+              {metal === 'Silver' && (
+                <View style={{ flex: 1, minWidth: 120 }}><Field label="Purity (%)" value={o.silverPurity} onChangeText={(v) => setOrn(i, 'silverPurity', v)} keyboardType="decimal-pad" /></View>
+              )}
             </View>
+            {metal === 'Gold' && (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}><Field label="Net Weight (g)" value={o.netWeight} onChangeText={(v) => setOrn(i, 'netWeight', v)} keyboardType="decimal-pad" /></View>
+                <View style={{ flex: 1 }}><Field label="Gross Weight (g)" value={o.grossWeight} onChangeText={(v) => setOrn(i, 'grossWeight', v)} keyboardType="decimal-pad" /></View>
+              </View>
+            )}
+            {metal === 'Others' && (
+              <Field label="Material / Type" value={o.materialType} onChangeText={(v) => setOrn(i, 'materialType', v)} placeholder="e.g. Platinum, Diamond" />
+            )}
           </View>
         );
       })}
@@ -875,7 +968,7 @@ export function LoanDetail({ db, update, id, back }) {
           <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
           <CalendarPicker value={editFields.date} onChange={(v) => setEditFields((p) => ({ ...p, date: v }))} label="Select date" />
           <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Due date</Text>
-          <CalendarPicker value={editFields.dueDate} onChange={(v) => setEditFields((p) => ({ ...p, dueDate: v }))} label="Select due date" />
+          <CalendarPicker value={editFields.dueDate} onChange={(v) => setEditFields((p) => ({ ...p, dueDate: v }))} label="DD/MM/YYYY" />
           <Field label="Principal (₹)" value={String(editFields.principal)} onChangeText={(v) => setEditFields((p) => ({ ...p, principal: Number(v) || 0 }))} keyboardType="number-pad" />
           <Field label="Rate (% / month)" value={String(editFields.rate)} onChangeText={(v) => setEditFields((p) => ({ ...p, rate: Number(v) || 0 }))} keyboardType="decimal-pad" />
           <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Interest calculation</Text>
@@ -1001,7 +1094,7 @@ function PaymentRow({ p, db, update }) {
 }
 
 /* ---------- Member Summary ---------- */
-export function MemberSummary({ db, go }) {
+export function MemberSummary({ db, update, go }) {
   const [q, setQ] = useState('');
   const rows = db.loans
     .filter((l) => l.status === 'active')
@@ -1026,7 +1119,13 @@ export function MemberSummary({ db, go }) {
         <Card key={l.id} onPress={() => go('loan', { id: l.id })}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 2 }}>
             <Text style={{ fontWeight: '700', color: C.text, flex: 1 }}>{cust.name || 'Unknown'}</Text>
-            {c.overdue ? <Chip text="Overdue" color={C.red} /> : null}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              {c.overdue ? <Chip text="Overdue" color={C.red} /> : null}
+              <TouchableOpacity onPress={() => go('loan', { id: l.id })} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: C.gold }}>
+                <Text style={{ color: C.gold, fontWeight: '700', fontSize: 12 }}>Edit</Text>
+              </TouchableOpacity>
+              <StmtDeleteBtn loanId={l.id} db={db} update={update} />
+            </View>
           </View>
           {cust.custNo ? <Text style={{ color: C.gold, fontSize: 12, fontWeight: '600', marginBottom: 2 }}>{cust.custNo} · {l.no}</Text>
             : <Text style={{ color: C.mute, fontSize: 12, marginBottom: 2 }}>{l.no}</Text>}
@@ -2324,7 +2423,31 @@ export function Reports({ db, go }) {
   );
 }
 
-export function Statement({ db, id, back, go }) {
+function StmtDeleteBtn({ loanId, db, update }) {
+  const [delPwVisible, setDelPwVisible] = useState(false);
+  const doDelete = () => {
+    confirm('Delete this loan and all its payments?', async () => {
+      await update((d) => ({
+        ...d,
+        loans: d.loans.filter((x) => x.id !== loanId),
+        payments: d.payments.filter((p) => p.loanId !== loanId),
+      }));
+    }, 'Delete');
+  };
+  return (
+    <>
+      <PasswordModal visible={delPwVisible} storedPassword={db.editPassword}
+        onOk={() => { setDelPwVisible(false); doDelete(); }}
+        onCancel={() => setDelPwVisible(false)} title="Enter password to delete loan" />
+      <TouchableOpacity onPress={() => db.editPassword ? setDelPwVisible(true) : doDelete()}
+        style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: C.red }}>
+        <Text style={{ color: C.red, fontWeight: '700', fontSize: 12 }}>Delete</Text>
+      </TouchableOpacity>
+    </>
+  );
+}
+
+export function Statement({ db, id, back, go, update }) {
   const c = db.customers.find((x) => x.id === id); if (!c) return null;
   const allLoans = db.loans.filter((l) => l.customerId === id);
   const [fFrom, setFFrom] = useState('');
@@ -2367,7 +2490,23 @@ export function Statement({ db, id, back, go }) {
         <Btn title="Export as CSV" onPress={exportCSV} style={{ marginBottom: 4 }} />
         {loans.length === 0 ? <Empty text="No loans for this customer." /> : loans.map((l) => {
           const k = calc(l, db.payments);
-          return <Card key={l.id} onPress={() => go('loan', { id: l.id })}><Row a={l.no} b={l.status} bold /><Row a="Principal" b={inr(l.principal)} /><Row a="Paid" b={inr(k.paid)} /><Row a="Outstanding" b={inr(k.outstanding)} bold /></Card>;
+          return (
+            <Card key={l.id} onPress={() => go('loan', { id: l.id })}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <Text style={{ fontWeight: '700', color: C.text }}>{l.no}</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity onPress={() => go('loan', { id: l.id })} style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: C.gold }}>
+                    <Text style={{ color: C.gold, fontWeight: '700', fontSize: 12 }}>Edit</Text>
+                  </TouchableOpacity>
+                  <StmtDeleteBtn loanId={l.id} db={db} update={update} />
+                </View>
+              </View>
+              <Row a="Status" b={l.status} bold />
+              <Row a="Principal" b={inr(l.principal)} />
+              <Row a="Paid" b={inr(k.paid)} />
+              <Row a="Outstanding" b={inr(k.outstanding)} bold />
+            </Card>
+          );
         })}
         <View style={{ height: 120 }} />
       </ScrollView>
@@ -3118,6 +3257,301 @@ export function CustomerLedger({ db, back }) {
 }
 
 const cell = { fontSize: 12, color: C.text, paddingHorizontal: 6, textAlignVertical: 'center' };
+
+/* ---------- Transaction Screens ---------- */
+
+const TxnHistoryRow = ({ p, db, accentColor }) => {
+  const loan = (db.loans || []).find((l) => l.id === p.loanId) || {};
+  const cust = (db.customers || []).find((c) => c.id === loan.customerId) || {};
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 11, paddingHorizontal: 14, borderBottomWidth: 1, borderColor: '#F0F4FA' }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 14, fontWeight: '600', color: C.text }}>{cust.name || p.note || '-'}</Text>
+        <Text style={{ fontSize: 12, color: C.mute, marginTop: 2 }}>{dmy(p.date)}{loan.no ? ' \u00b7 ' + loan.no : ''}{p.method && p.method !== 'Cash' ? ' \u00b7 ' + p.method : ''}</Text>
+      </View>
+      <Text style={{ fontSize: 14, fontWeight: '700', color: p.amount >= 0 ? accentColor : C.red }}>{inr(Math.abs(p.amount))}</Text>
+    </View>
+  );
+};
+
+function TxnScreen({ title, icon, accentColor, formFields, onSave, back, history, db, totalLabel }) {
+  const total = history.reduce((s, p) => s + Math.abs(p.amount), 0);
+  return (
+    <View style={{ flex: 1, backgroundColor: '#F3F5F8' }}>
+      <Header title={title} onBack={back} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+        <View style={{ backgroundColor: '#fff', margin: 12, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: C.line }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <View style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: accentColor + '20', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontSize: 20 }}>{icon}</Text>
+            </View>
+            <Text style={{ fontSize: 15, fontWeight: '700', color: accentColor }}>New {title}</Text>
+          </View>
+          {formFields}
+          <TouchableOpacity onPress={onSave} style={{ backgroundColor: accentColor, borderRadius: 10, paddingVertical: 14, alignItems: 'center', marginTop: 4 }}>
+            <Text style={{ color: '#fff', fontWeight: '700', fontSize: 15 }}>Save</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={{ marginHorizontal: 12, marginTop: 4 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <Text style={{ fontSize: 12, fontWeight: '700', color: C.navy, letterSpacing: 0.5 }}>RECENT {title.toUpperCase()}</Text>
+            {history.length > 0 && <Text style={{ fontSize: 13, fontWeight: '700', color: accentColor }}>{totalLabel}: {inr(total)}</Text>}
+          </View>
+          {history.length === 0
+            ? <View style={{ backgroundColor: '#fff', borderRadius: 12, padding: 24, alignItems: 'center', borderWidth: 1, borderColor: C.line }}>
+                <Text style={{ color: C.mute, fontSize: 14 }}>No records yet.</Text>
+              </View>
+            : <View style={{ backgroundColor: '#fff', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: C.line }}>
+                <View style={{ flexDirection: 'row', backgroundColor: accentColor, paddingVertical: 8, paddingHorizontal: 14 }}>
+                  <Text style={{ flex: 1, color: '#fff', fontWeight: '700', fontSize: 11 }}>PARTY / DATE</Text>
+                  <Text style={{ color: '#fff', fontWeight: '700', fontSize: 11 }}>AMOUNT</Text>
+                </View>
+                {history.map((p) => <TxnHistoryRow key={p.id} p={p} db={db} accentColor={accentColor} />)}
+              </View>
+          }
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+function PartySearch({ custQ, setCustQ, custId, setCustId, db }) {
+  const filtered = db.customers.filter((c) => (c.name + (c.phone || '')).toLowerCase().includes(custQ.toLowerCase())).slice(0, 6);
+  return (
+    <>
+      <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Party Name</Text>
+      <TextInput value={custQ} onChangeText={(t) => { setCustQ(t); setCustId(null); }} placeholder="Search party..." placeholderTextColor="#9AA7B4" style={[s.input, { marginBottom: 6 }]} />
+      {custQ.length > 0 && !custId && filtered.map((c) => (
+        <TouchableOpacity key={c.id} onPress={() => { setCustId(c.id); setCustQ(c.name); }} style={{ padding: 10, borderRadius: 8, marginBottom: 4, backgroundColor: '#EEF4FF', borderWidth: 1, borderColor: C.line }}>
+          <Text style={{ fontWeight: '600', color: C.text }}>{c.name}</Text>
+          <Text style={{ color: C.mute, fontSize: 12 }}>{c.phone || ''}</Text>
+        </TouchableOpacity>
+      ))}
+      {custId && (
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#EEF4FF', borderRadius: 8, padding: 8, marginBottom: 8 }}>
+          <Text style={{ color: C.navy, fontWeight: '700', fontSize: 13 }}>{'\u2713'} {custQ}</Text>
+          <TouchableOpacity onPress={() => { setCustId(null); setCustQ(''); }}><Text style={{ color: C.red, fontWeight: '700' }}>{'\u2715'}</Text></TouchableOpacity>
+        </View>
+      )}
+    </>
+  );
+}
+
+function MethodPicker({ method, setMethod, accentColor }) {
+  return (
+    <>
+      <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Payment Method</Text>
+      <View style={{ flexDirection: 'row', gap: 6, marginBottom: 12 }}>
+        {PAY_METHODS.map((m) => (
+          <TouchableOpacity key={m} onPress={() => setMethod(m)} style={{ flex: 1, paddingVertical: 8, borderRadius: 10, alignItems: 'center', borderWidth: 1, borderColor: method === m ? accentColor : C.line, backgroundColor: method === m ? accentColor : '#fff' }}>
+            <Text style={{ color: method === m ? '#fff' : C.text, fontWeight: '600', fontSize: 13 }}>{m}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </>
+  );
+}
+
+export function SaleInvoiceScreen({ db, update, back }) {
+  const [custQ, setCustQ] = useState('');
+  const [custId, setCustId] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState('');
+  const [method, setMethod] = useState('Cash');
+  const history = (db.payments || []).filter((p) => p.colType === 'interest' && p.amount > 0).slice(0, 30);
+  const save = async () => {
+    if (!custId) return notify('Select a party');
+    const a = Number(amount); if (!a || a <= 0) return notify('Enter a valid amount');
+    const loan = db.loans.find((l) => l.customerId === custId && l.status === 'active');
+    if (!loan) return notify('No active loan for this party');
+    await update((d) => ({ ...d, payments: [{ id: uid(), loanId: loan.id, amount: a, note: note || 'Sale Invoice', date: date || today(), colType: 'interest', method }, ...d.payments] }));
+    notify('Sale Invoice saved'); back();
+  };
+  return (
+    <TxnScreen title="Sale Invoice" icon="🧾" accentColor="#1A6FA8" back={back} onSave={save} history={history} db={db} totalLabel="Total"
+      formFields={<>
+        <PartySearch custQ={custQ} setCustQ={setCustQ} custId={custId} setCustId={setCustId} db={db} />
+        <Field label="Amount (\u20b9)" value={amount} onChangeText={setAmount} keyboardType="number-pad" />
+        <MethodPicker method={method} setMethod={setMethod} accentColor="#1A6FA8" />
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
+        <CalendarPicker value={date} onChange={setDate} label="Select date" />
+        <Field label="Note (optional)" value={note} onChangeText={setNote} />
+      </>}
+    />
+  );
+}
+
+export function PaymentInScreen({ db, update, back }) {
+  const [custQ, setCustQ] = useState('');
+  const [custId, setCustId] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState('');
+  const [method, setMethod] = useState('Cash');
+  const history = (db.payments || []).filter((p) => p.colType === 'capital' && p.amount > 0).slice(0, 30);
+  const save = async () => {
+    if (!custId) return notify('Select a party');
+    const a = Number(amount); if (!a || a <= 0) return notify('Enter a valid amount');
+    const loan = db.loans.find((l) => l.customerId === custId && l.status === 'active');
+    if (!loan) return notify('No active loan for this party');
+    await update((d) => ({ ...d, cashInHand: (d.cashInHand || 0) + (method === 'Cash' ? a : 0), payments: [{ id: uid(), loanId: loan.id, amount: a, note: note || 'Payment In', date: date || today(), colType: 'capital', method }, ...d.payments] }));
+    notify('Payment-In saved'); back();
+  };
+  return (
+    <TxnScreen title="Payment-In" icon="💵" accentColor="#1E8A58" back={back} onSave={save} history={history} db={db} totalLabel="Total In"
+      formFields={<>
+        <PartySearch custQ={custQ} setCustQ={setCustQ} custId={custId} setCustId={setCustId} db={db} />
+        <Field label="Amount (\u20b9)" value={amount} onChangeText={setAmount} keyboardType="number-pad" />
+        <MethodPicker method={method} setMethod={setMethod} accentColor="#1E8A58" />
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
+        <CalendarPicker value={date} onChange={setDate} label="Select date" />
+        <Field label="Note (optional)" value={note} onChangeText={setNote} />
+      </>}
+    />
+  );
+}
+
+export function PurchaseScreen({ db, update, back }) {
+  const [custQ, setCustQ] = useState('');
+  const [custId, setCustId] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState('');
+  const [method, setMethod] = useState('Cash');
+  const history = (db.payments || []).filter((p) => p.colType === 'purchase').slice(0, 30);
+  const save = async () => {
+    if (!custId) return notify('Select a party');
+    const a = Number(amount); if (!a || a <= 0) return notify('Enter a valid amount');
+    const loan = db.loans.find((l) => l.customerId === custId && l.status === 'active');
+    if (!loan) return notify('No active loan for this party');
+    await update((d) => ({ ...d, payments: [{ id: uid(), loanId: loan.id, amount: -a, note: note || 'Purchase', date: date || today(), colType: 'purchase', method }, ...d.payments] }));
+    notify('Purchase saved'); back();
+  };
+  return (
+    <TxnScreen title="Purchase" icon="🛒" accentColor="#1E8A58" back={back} onSave={save} history={history} db={db} totalLabel="Total"
+      formFields={<>
+        <PartySearch custQ={custQ} setCustQ={setCustQ} custId={custId} setCustId={setCustId} db={db} />
+        <Field label="Amount (\u20b9)" value={amount} onChangeText={setAmount} keyboardType="number-pad" />
+        <MethodPicker method={method} setMethod={setMethod} accentColor="#1E8A58" />
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
+        <CalendarPicker value={date} onChange={setDate} label="Select date" />
+        <Field label="Note (optional)" value={note} onChangeText={setNote} />
+      </>}
+    />
+  );
+}
+
+export function PaymentOutScreen({ db, update, back }) {
+  const [custQ, setCustQ] = useState('');
+  const [custId, setCustId] = useState(null);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState('');
+  const [method, setMethod] = useState('Cash');
+  const history = (db.payments || []).filter((p) => p.colType === 'paymentOut').slice(0, 30);
+  const save = async () => {
+    if (!custId) return notify('Select a party');
+    const a = Number(amount); if (!a || a <= 0) return notify('Enter a valid amount');
+    const loan = db.loans.find((l) => l.customerId === custId && l.status === 'active');
+    if (!loan) return notify('No active loan for this party');
+    await update((d) => ({ ...d, cashInHand: (d.cashInHand || 0) - (method === 'Cash' ? a : 0), payments: [{ id: uid(), loanId: loan.id, amount: -a, note: note || 'Payment Out', date: date || today(), colType: 'paymentOut', method }, ...d.payments] }));
+    notify('Payment-Out saved'); back();
+  };
+  return (
+    <TxnScreen title="Payment-Out" icon="💸" accentColor="#B93A2E" back={back} onSave={save} history={history} db={db} totalLabel="Total Out"
+      formFields={<>
+        <PartySearch custQ={custQ} setCustQ={setCustQ} custId={custId} setCustId={setCustId} db={db} />
+        <Field label="Amount (\u20b9)" value={amount} onChangeText={setAmount} keyboardType="number-pad" />
+        <MethodPicker method={method} setMethod={setMethod} accentColor="#B93A2E" />
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
+        <CalendarPicker value={date} onChange={setDate} label="Select date" />
+        <Field label="Note (optional)" value={note} onChangeText={setNote} />
+      </>}
+    />
+  );
+}
+
+export function ExpensesScreen({ db, update, back }) {
+  const [category, setCategory] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState('');
+  const [method, setMethod] = useState('Cash');
+  const CATEGORIES = ['Rent', 'Salary', 'Utilities', 'Maintenance', 'Other'];
+  const history = (db.payments || []).filter((p) => p.colType === 'expense').slice(0, 30);
+  const save = async () => {
+    const a = Number(amount); if (!a || a <= 0) return notify('Enter a valid amount');
+    if (!category) return notify('Select a category');
+    await update((d) => ({ ...d, cashInHand: (d.cashInHand || 0) - (method === 'Cash' ? a : 0), payments: [{ id: uid(), loanId: null, amount: -a, note: note || category, date: date || today(), colType: 'expense', method }, ...d.payments] }));
+    notify('Expense saved'); back();
+  };
+  return (
+    <TxnScreen title="Expenses" icon="💳" accentColor="#B8912F" back={back} onSave={save} history={history} db={db} totalLabel="Total Spent"
+      formFields={<>
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 6 }}>Category</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity key={cat} onPress={() => setCategory(cat)} style={{ paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: category === cat ? '#B8912F' : C.line, backgroundColor: category === cat ? '#B8912F' : '#fff' }}>
+              <Text style={{ color: category === cat ? '#fff' : C.text, fontWeight: '600', fontSize: 13 }}>{cat}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <Field label="Amount (\u20b9)" value={amount} onChangeText={setAmount} keyboardType="number-pad" />
+        <MethodPicker method={method} setMethod={setMethod} accentColor="#B8912F" />
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
+        <CalendarPicker value={date} onChange={setDate} label="Select date" />
+        <Field label="Note (optional)" value={note} onChangeText={setNote} />
+      </>}
+    />
+  );
+}
+
+export function OtherIncomeScreen({ db, update, back }) {
+  const [source, setSource] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(today());
+  const [note, setNote] = useState('');
+  const [method, setMethod] = useState('Cash');
+  const history = (db.payments || []).filter((p) => p.colType === 'otherIncome').slice(0, 30);
+  const save = async () => {
+    const a = Number(amount); if (!a || a <= 0) return notify('Enter a valid amount');
+    await update((d) => ({ ...d, cashInHand: (d.cashInHand || 0) + (method === 'Cash' ? a : 0), payments: [{ id: uid(), loanId: null, amount: a, note: note || source || 'Other Income', date: date || today(), colType: 'otherIncome', method }, ...d.payments] }));
+    notify('Other Income saved'); back();
+  };
+  return (
+    <TxnScreen title="Other Income" icon="💰" accentColor="#B8912F" back={back} onSave={save} history={history} db={db} totalLabel="Total Income"
+      formFields={<>
+        <Field label="Source / Description" value={source} onChangeText={setSource} placeholder="e.g. Commission, Interest" />
+        <Field label="Amount (\u20b9)" value={amount} onChangeText={setAmount} keyboardType="number-pad" />
+        <MethodPicker method={method} setMethod={setMethod} accentColor="#B8912F" />
+        <Text style={{ color: C.mute, fontSize: 13, fontWeight: '600', marginBottom: 4 }}>Date</Text>
+        <CalendarPicker value={date} onChange={setDate} label="Select date" />
+        <Field label="Note (optional)" value={note} onChangeText={setNote} />
+      </>}
+    />
+  );
+}
+
+/* Coming-soon screens */
+function ComingSoonScreen({ title, icon, back }) {
+  return (
+    <><Header title={title} onBack={back} />
+    <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32 }}>
+      <Text style={{ fontSize: 56, marginBottom: 16 }}>{icon}</Text>
+      <Text style={{ fontSize: 20, fontWeight: '800', color: C.navy, marginBottom: 8 }}>{title}</Text>
+      <Text style={{ fontSize: 14, color: C.mute, textAlign: 'center', lineHeight: 22 }}>{'This feature is coming soon.\nStay tuned for updates!'}</Text>
+    </View></>
+  );
+}
+
+export function SaleReturnScreen({ back }) { return <ComingSoonScreen title="Dr. Note / Sale Return" icon="↩️" back={back} />; }
+export function SaleOrderScreen({ back }) { return <ComingSoonScreen title="Sale Order" icon="📋" back={back} />; }
+export function EstimateScreen({ back }) { return <ComingSoonScreen title="Estimate / Quotation" icon="\ud83d\udcdd" back={back} />; }
+export function MobilePOSScreen({ back }) { return <ComingSoonScreen title="Mobile POS" icon="\ud83d\udcf1" back={back} />; }
+export function PurchaseReturnScreen({ back }) { return <ComingSoonScreen title="Dr. Note / Purchase Return" icon="\u21a9\ufe0f" back={back} />; }
+export function PurchaseOrderScreen({ back }) { return <ComingSoonScreen title="Purchase Order" icon="\ud83d\udce6" back={back} />; }
+export function PartyTransferScreen({ back }) { return <ComingSoonScreen title="Party To Party Transfer" icon="\ud83d\udd04" back={back} />; }
 
 /* ---------- Settings ---------- */
 export function Profile({ db, update, back }) {

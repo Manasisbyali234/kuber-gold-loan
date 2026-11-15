@@ -103,6 +103,19 @@ export default function App() {
       customerProfile: <S.CustomerProfile {...p} id={sub.id} />,
       reportDetail: <S.ReportDetail {...p} sub={sub} />,
       saleDetail: <S.SaleDetail {...p} paymentId={sub.paymentId} />,
+      saleInvoice: <S.SaleInvoiceScreen {...p} />,
+      paymentIn: <S.PaymentInScreen {...p} />,
+      saleReturn: <S.SaleReturnScreen {...p} />,
+      saleOrder: <S.SaleOrderScreen {...p} />,
+      estimate: <S.EstimateScreen {...p} />,
+      mobilePOS: <S.MobilePOSScreen {...p} />,
+      purchase: <S.PurchaseScreen {...p} />,
+      paymentOut: <S.PaymentOutScreen {...p} />,
+      purchaseReturn: <S.PurchaseReturnScreen {...p} />,
+      purchaseOrder: <S.PurchaseOrderScreen {...p} />,
+      expenses: <S.ExpensesScreen {...p} />,
+      partyTransfer: <S.PartyTransferScreen {...p} />,
+      otherIncome: <S.OtherIncomeScreen {...p} />,
     };
     screen = map[sub.name] || null;
   } else {
