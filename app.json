@@ -4,17 +4,12 @@
     "slug": "kuber-gold-loan",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "platforms": [
       "android",
       "web"
     ],
     "android": {
-      "package": "com.apex.kubergoldloan",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#12263A"
-      }
+      "package": "com.apex.kubergoldloan"
     },
     "web": {
       "bundler": "metro"
@@ -24,8 +19,9 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "17c24bc5-a5fb-45b7-b14e-189bd8719f1f"
+        "projectId": "55f5894c-7555-40d9-8a9a-b027d0c32e09"
       }
-    }
+    },
+    "owner": "manvi89"
   }
 }

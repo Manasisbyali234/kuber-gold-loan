@@ -1,5 +1,5 @@
 import React, { useState, forwardRef, useRef } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, KeyboardAvoidingView, Platform, PanResponder, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, Modal, KeyboardAvoidingView, Platform, PanResponder } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 export const C = { navy: '#12263A', navy2: '#1C3A57', gold: '#B8912F', goldSoft: '#F6EFD9', bg: '#F3F5F8', text: '#1B2733', mute: '#6B7A8A', red: '#B93A2E', green: '#1E8A58', line: '#E1E6EC', white: '#fff' };
 export const Btn = ({ title, onPress, kind, style }) => (
@@ -18,18 +18,17 @@ export const Card = ({ children, style, onPress }) => {
   const W = onPress ? TouchableOpacity : View;
   return <W onPress={onPress} activeOpacity={0.8} style={[s.card, style]}>{children}</W>;
 };
-export const Header = ({ title, onBack, left, right }) => (
+export const Header = ({ title, onBack, right }) => (
   <View style={s.header}>
-    {left || null}
-    {onBack ? <TouchableOpacity onPress={onBack} style={{ paddingRight: 14, paddingLeft: left ? 4 : 0 }}><Text style={{ color: '#fff', fontSize: 22 }}>‹</Text></TouchableOpacity> : null}
+    {onBack ? <TouchableOpacity onPress={onBack} style={{ paddingRight: 14 }}><Text style={{ color: '#fff', fontSize: 22 }}>‹</Text></TouchableOpacity> : null}
     <Text style={s.hTitle}>{title}</Text>
     <View style={{ flex: 1 }} />{right}
   </View>
 );
 export const Row = ({ a, b, bold, color }) => (
   <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 5 }}>
-    <Text style={{ color: color || C.text, fontWeight: bold ? '700' : '500', marginRight: 12, flexShrink: 1 }}>{b}</Text>
-    <Text style={{ color: C.mute, flexShrink: 1, textAlign: 'right' }}>{a}</Text>
+    <Text style={{ color: C.mute, flexShrink: 1 }}>{a}</Text>
+    <Text style={{ color: color || C.text, fontWeight: bold ? '700' : '500', marginLeft: 12, textAlign: 'right', flexShrink: 1 }}>{b}</Text>
   </View>
 );
 export const Chip = ({ text, color }) => (
@@ -92,7 +91,6 @@ export function SuggestField({ label, value, onChangeText, suggestions = [], ...
 export function SignaturePad({ value, onChange }) {
   const [paths, setPaths] = useState([]);
   const current = useRef([]);
-  const allPaths = useRef([]);
 
   const toD = (pts) => pts.length < 2 ? '' : pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
 
@@ -102,21 +100,19 @@ export function SignaturePad({ value, onChange }) {
     onPanResponderGrant: (e) => {
       const { locationX: x, locationY: y } = e.nativeEvent;
       current.current = [{ x, y }];
-      allPaths.current = [...allPaths.current, [{ x, y }]];
-      setPaths([...allPaths.current]);
+      setPaths((p) => [...p, [{ x, y }]]);
     },
     onPanResponderMove: (e) => {
       const { locationX: x, locationY: y } = e.nativeEvent;
       current.current = [...current.current, { x, y }];
-      allPaths.current = [...allPaths.current.slice(0, -1), current.current];
-      setPaths([...allPaths.current]);
+      setPaths((p) => [...p.slice(0, -1), current.current]);
     },
     onPanResponderRelease: () => {
-      if (onChange) onChange([...allPaths.current]);
+      if (onChange) onChange(paths);
     },
   })).current;
 
-  const clear = () => { allPaths.current = []; setPaths([]); if (onChange) onChange([]); };
+  const clear = () => { setPaths([]); if (onChange) onChange([]); };
 
   return (
     <View style={{ marginBottom: 12 }}>
@@ -181,65 +177,20 @@ export function CalendarPicker({ value, value2, onChange, onChangeEnd, label }) 
   const prevM = () => setCur((c) => c.m === 0 ? { y: c.y-1, m: 11 } : { y: c.y, m: c.m-1 });
   const nextM = () => setCur((c) => c.m === 11 ? { y: c.y+1, m: 0 } : { y: c.y, m: c.m+1 });
 
-  const fmtDisplay = (isoStr) => { if (!isoStr) return ''; const [y, m, d] = isoStr.split('-'); return `${d}/${m}/${y}`; };
-  const parseManual = (text) => {
-    const parts = text.split('/');
-    if (parts.length === 3) {
-      const [d, m, y] = parts.map(Number);
-      if (y >= 1900 && y <= 2100 && m >= 1 && m <= 12 && d >= 1 && d <= new Date(y, m, 0).getDate()) {
-        return `${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-      }
-    }
-    return null;
-  };
-  const [textInput, setTextInput] = useState(value ? fmtDisplay(value) : '');
-  const [inputError, setInputError] = useState(false);
-
-  React.useEffect(() => { setTextInput(value ? fmtDisplay(value) : ''); setInputError(false); }, [value]);
-
-  const handleTextChange = (text) => {
-    setTextInput(text);
-    setInputError(false);
-    const iso = parseManual(text);
-    if (iso) { onChange(iso); if (onChangeEnd) onChangeEnd(''); }
-    else if (text.length === 0) { onChange(''); if (onChangeEnd) onChangeEnd(''); }
-  };
-  const handleTextBlur = () => {
-    if (textInput.length > 0 && !parseManual(textInput)) setInputError(true);
-  };
-
-  const displayLabel = value2 ? `${fmtDisplay(value)}  →  ${fmtDisplay(value2)}` : null;
+  const fmtDisplay = (isoStr) => { if (!isoStr) return ''; const [y, m, d] = isoStr.split('-'); return `${d}-${m}-${y}`; };
+  const displayLabel = value
+    ? (value2 ? `${fmtDisplay(value)}  →  ${fmtDisplay(value2)}` : fmtDisplay(value))
+    : (label || 'Select date');
 
   return (
     <View style={{ marginBottom: 12 }}>
-      {displayLabel ? (
-        <TouchableOpacity onPress={() => setOpen((v) => !v)}
-          style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-            backgroundColor: '#fff', borderWidth: 1, borderColor: open ? C.gold : C.line,
-            borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 }}>
-          <Text style={{ color: C.text, fontSize: 15 }}>{displayLabel}</Text>
-          <Text style={{ color: C.gold, fontSize: 16 }}>📅</Text>
-        </TouchableOpacity>
-      ) : (
-        <View style={{ flexDirection: 'row', alignItems: 'center',
-          backgroundColor: '#fff', borderWidth: 1, borderColor: inputError ? C.red : open ? C.gold : C.line,
+      <TouchableOpacity onPress={() => setOpen((v) => !v)}
+        style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+          backgroundColor: '#fff', borderWidth: 1, borderColor: open ? C.gold : C.line,
           borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11 }}>
-          <TextInput
-            value={textInput}
-            onChangeText={handleTextChange}
-            onBlur={handleTextBlur}
-            onFocus={() => setOpen(false)}
-            placeholder="DD/MM/YYYY"
-            placeholderTextColor="#9AA7B4"
-            style={{ flex: 1, fontSize: 15, color: C.text, padding: 0 }}
-            maxLength={10}
-            keyboardType="numeric"
-          />
-          <TouchableOpacity onPress={() => setOpen((v) => !v)}>
-            <Text style={{ color: C.gold, fontSize: 16 }}>📅</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        <Text style={{ color: value ? C.text : '#9AA7B4', fontSize: 15 }}>{displayLabel}</Text>
+        <Text style={{ color: C.gold, fontSize: 16 }}>📅</Text>
+      </TouchableOpacity>
 
       {open && (
         <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: C.line, borderRadius: 12, marginTop: 4, padding: 10 }}>
@@ -251,54 +202,37 @@ export function CalendarPicker({ value, value2, onChange, onChangeEnd, label }) 
           </View>
           {/* Day headers */}
           <View style={{ flexDirection: 'row', marginBottom: 4 }}>
-            {CAL_DAYS.map((d) => (
-              <Text key={d} style={{ width: '14.28%', textAlign: 'center', color: C.mute, fontSize: 12, fontWeight: '600' }}>{d}</Text>
-            ))}
+            {CAL_DAYS.map((d) => <Text key={d} style={{ flex: 1, textAlign: 'center', color: C.mute, fontSize: 12, fontWeight: '600' }}>{d}</Text>)}
           </View>
           {/* Cells */}
           {Array.from({ length: Math.ceil(cells.length / 7) }, (_, row) => (
             <View key={row} style={{ flexDirection: 'row', marginBottom: 2 }}>
-              {cells.slice(row * 7, row * 7 + 7).concat(Array(7)).slice(0, 7).map((d, col) => {
+              {cells.slice(row*7, row*7+7).concat(Array(7)).slice(0,7).map((d, col) => {
                 const sel = isSelected(d);
                 const start = isStart(d);
                 const end = isEnd(d);
                 const isToday = d && new Date(cur.y, cur.m, d).toDateString() === today.toDateString();
                 return (
-                  <View key={col} style={{ width: '14.28%', alignItems: 'center', paddingVertical: 4 }}>
-                    <TouchableOpacity
-                      disabled={!d}
-                      onPress={() => onChangeEnd ? (value && !value2 ? pickEnd(d) : pick(d)) : pick(d)}
-                      style={{
-                        width: 32, height: 32, borderRadius: 16,
-                        alignItems: 'center', justifyContent: 'center',
-                        backgroundColor: (start || end) ? C.navy : sel ? C.goldSoft : 'transparent',
-                      }}>
-                      <Text style={{
-                        fontSize: 13,
-                        fontWeight: isToday ? '800' : '400',
-                        color: (start || end) ? '#fff' : sel ? C.navy : d ? C.text : 'transparent',
-                      }}>{d || ''}</Text>
-                      {isToday && !sel && (
-                        <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: C.gold, position: 'absolute', bottom: 2 }} />
-                      )}
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity key={col} disabled={!d}
+                    onPress={() => onChangeEnd ? (value && !value2 ? pickEnd(d) : pick(d)) : pick(d)}
+                    style={{ flex: 1, alignItems: 'center', paddingVertical: 6,
+                      backgroundColor: sel ? (start || end ? C.navy : C.goldSoft) : 'transparent',
+                      borderRadius: (start || end || !onChangeEnd) ? 8 : 0 }}>
+                    <Text style={{ fontSize: 13, fontWeight: isToday ? '800' : '400',
+                      color: (start || end) ? '#fff' : sel ? C.navy : d ? C.text : 'transparent' }}>{d || ''}</Text>
+                    {isToday && !sel && <View style={{ width: 4, height: 4, borderRadius: 2, backgroundColor: C.gold, marginTop: 1 }} />}
+                  </TouchableOpacity>
                 );
               })}
             </View>
           ))}
-          {/* Clear + OK */}
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            {(value || value2) ? (
-              <TouchableOpacity onPress={() => { onChange(''); if (onChangeEnd) onChangeEnd(''); }}>
-                <Text style={{ color: C.red, fontWeight: '600', fontSize: 13 }}>Clear</Text>
-              </TouchableOpacity>
-            ) : <View />}
-            <TouchableOpacity onPress={() => setOpen(false)}
-              style={{ backgroundColor: C.navy, borderRadius: 8, paddingHorizontal: 20, paddingVertical: 7 }}>
-              <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>OK</Text>
+          {/* Clear */}
+          {(value || value2) && (
+            <TouchableOpacity onPress={() => { onChange(''); if (onChangeEnd) onChangeEnd(''); }}
+              style={{ marginTop: 6, alignItems: 'center' }}>
+              <Text style={{ color: C.red, fontWeight: '600', fontSize: 13 }}>Clear</Text>
             </TouchableOpacity>
-          </View>
+          )}
         </View>
       )}
     </View>
@@ -312,23 +246,6 @@ export const s = StyleSheet.create({
   label: { color: C.mute, fontSize: 13, marginBottom: 5, fontWeight: '600' },
   input: { backgroundColor: '#fff', borderWidth: 1, borderColor: C.line, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 11, fontSize: 15, color: C.text },
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: C.line },
-  header: { backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' },
+  header: { backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 16, flexDirection: 'row', alignItems: 'center' },
   hTitle: { color: '#fff', fontSize: 19, fontWeight: '700' },
 });
-
-/* KJewels-style Header */
-export const KHeader = ({ onMenuPress, onRefreshPress }) => (
-  <View style={{ backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' }}>
-    <TouchableOpacity onPress={onMenuPress} style={{ padding: 4, marginRight: 12 }}>
-      <View style={{ gap: 5 }}>
-        <View style={{ width: 22, height: 2, backgroundColor: '#fff', borderRadius: 2 }} />
-        <View style={{ width: 22, height: 2, backgroundColor: '#fff', borderRadius: 2 }} />
-        <View style={{ width: 22, height: 2, backgroundColor: '#fff', borderRadius: 2 }} />
-      </View>
-    </TouchableOpacity>
-    <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800', flex: 1 }}>K Jewels</Text>
-    <TouchableOpacity onPress={onRefreshPress} style={{ padding: 4 }}>
-      <Text style={{ color: '#fff', fontSize: 20 }}>⟳</Text>
-    </TouchableOpacity>
-  </View>
-);
