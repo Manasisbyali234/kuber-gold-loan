@@ -1,18 +1,21 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { SafeAreaView, ScrollView, View, Text, TouchableOpacity, StatusBar, BackHandler, Platform } from 'react-native';
+import { SafeAreaView, View, Text, TouchableOpacity, StatusBar, BackHandler, Platform, Modal, Pressable } from 'react-native';
 import { load, save } from './src/storage';
-import { C, Header } from './src/ui';
+import { C, Header, KHeader } from './src/ui';
 import * as S from './src/screens';
 import * as ScreenOrientation from 'expo-screen-orientation';
 
 const TABS = [
-  ['home', 'Home'],
-  ['summary', 'Summary'],
-  ['customers', 'Customers'],
-  ['loans', 'Loans'],
-  ['reports', 'Reports'],
-  ['more', 'Backup'],
-  ['settings', 'Settings'],
+  ['home', '🏠  Home'],
+  ['summary', '📊  Summary'],
+  ['customers', '👥  Customers'],
+  ['loans', '💰  Loans'],
+  ['reports', '📄  Reports'],
+  ['reportsMenu', '📋  All Reports'],
+  ['ledger', '📒  Customer Ledger'],
+  ['more', '🗄️  Backup'],
+  ['settings', '⚙️  Settings'],
+  ['terms', '📜  Terms & Conditions'],
 ];
 
 export default function App() {
@@ -21,6 +24,8 @@ export default function App() {
   const [tab, setTab] = useState('home');
   const [sub, setSub] = useState(null);
   const [landscape, setLandscape] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => { load().then(setDb); }, []);
 
@@ -94,31 +99,112 @@ export default function App() {
       statement: <S.Statement {...p} id={sub.id} />,
       dashboardConfig: <S.DashboardConfig {...p} />,
       profile: <S.Profile {...p} />,
+      dayEntry: <S.DayEntry {...p} />,
+      customerProfile: <S.CustomerProfile {...p} id={sub.id} />,
+      reportDetail: <S.ReportDetail {...p} sub={sub} />,
+      saleDetail: <S.SaleDetail {...p} paymentId={sub.paymentId} />,
+      saleInvoice: <S.SaleInvoiceScreen {...p} />,
+      paymentIn: <S.PaymentInScreen {...p} />,
+      saleReturn: <S.SaleReturnScreen {...p} />,
+      saleOrder: <S.SaleOrderScreen {...p} />,
+      estimate: <S.EstimateScreen {...p} />,
+      mobilePOS: <S.MobilePOSScreen {...p} />,
+      purchase: <S.PurchaseScreen {...p} />,
+      paymentOut: <S.PaymentOutScreen {...p} />,
+      purchaseReturn: <S.PurchaseReturnScreen {...p} />,
+      purchaseOrder: <S.PurchaseOrderScreen {...p} />,
+      expenses: <S.ExpensesScreen {...p} />,
+      partyTransfer: <S.PartyTransferScreen {...p} />,
+      otherIncome: <S.OtherIncomeScreen {...p} />,
     };
     screen = map[sub.name] || null;
   } else {
-    const titles = { home: 'Dashboard', summary: 'Member Summary', customers: 'Customers', loans: 'Loans', reports: 'Reports', more: 'Backup & Restore', settings: 'Settings' };
+    const titles = { home: 'K Jewels', summary: 'Member Summary', customers: 'Customers', loans: 'Loans', reports: 'Reports', reportsMenu: 'All Reports', ledger: 'Customer Ledger', more: 'Backup & Restore', settings: 'Settings', terms: 'Terms & Conditions' };
+    const menuBtn = (
+      <TouchableOpacity onPress={() => setMenuOpen(true)} style={{ paddingHorizontal: 10 }}>
+        <Text style={{ color: C.gold, fontSize: 22 }}>☰</Text>
+      </TouchableOpacity>
+    );
     const rotateBtn = (
       <TouchableOpacity onPress={toggleOrientation} style={{ paddingHorizontal: 10 }}>
         <Text style={{ color: C.gold, fontSize: 18 }}>⟳</Text>
       </TouchableOpacity>
     );
+    const backToHome = tab !== 'home' ? () => setTab('home') : handleBack;
     const body = {
-      home: <S.Dashboard {...p} />,
+      home: <S.HomeScreen key={refreshKey} {...p} />,
       summary: <S.MemberSummary {...p} />,
       customers: <S.Customers {...p} />,
       loans: <S.Loans {...p} />,
       reports: <S.Reports {...p} />,
+      reportsMenu: <S.ReportsMenu {...p} />,
+      ledger: <S.CustomerLedger db={db} back={() => setTab('home')} />,
       more: <S.Backup {...p} lock={() => setOk(false)} />,
       settings: <S.Profile {...p} />,
+      terms: <S.TermsView db={db} back={() => setTab('home')} />,
     };
-    screen = (
+    const sidebar = (
+      <View style={{ width: 220, backgroundColor: C.navy, paddingTop: 24, paddingHorizontal: 0 }}>
+        <Text style={{ color: C.gold, fontSize: 18, fontWeight: '800', paddingHorizontal: 20, marginBottom: 24 }}>💍 K Jewels</Text>
+        {TABS.map(([k, n]) => (
+          <React.Fragment key={k}>
+            <TouchableOpacity onPress={() => { setTab(k); setSub(null); }}
+              style={{ paddingVertical: 14, paddingHorizontal: 20, backgroundColor: tab === k ? C.navy2 : 'transparent', borderLeftWidth: tab === k ? 4 : 0, borderLeftColor: C.gold }}>
+              <Text style={{ color: tab === k ? C.gold : '#fff', fontSize: 14, fontWeight: tab === k ? '700' : '400' }}>{n}</Text>
+            </TouchableOpacity>
+            {k === 'home' && (
+              <TouchableOpacity onPress={() => { setSub({ name: 'customerProfile' }); }}
+                style={{ paddingVertical: 14, paddingHorizontal: 20 }}>
+                <Text style={{ color: '#fff', fontSize: 14 }}>👤  Customer Profile</Text>
+              </TouchableOpacity>
+            )}
+          </React.Fragment>
+        ))}
+      </View>
+    );
+
+    screen = landscape ? (
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        {sidebar}
+        <View style={{ flex: 1, backgroundColor: C.bg }}>
+          <View style={{ backgroundColor: C.navy, paddingHorizontal: 16, paddingVertical: 14, flexDirection: 'row', alignItems: 'center' }}>
+            <Text style={{ color: '#fff', fontSize: 18, fontWeight: '700', flex: 1 }}>{titles[tab]}</Text>
+            <TouchableOpacity onPress={toggleOrientation} style={{ paddingHorizontal: 10 }}>
+              <Text style={{ color: C.gold, fontSize: 18 }}>⊠</Text>
+            </TouchableOpacity>
+          </View>
+          {body[tab]}
+        </View>
+      </View>
+    ) : (
       <>
-        <Header title={titles[tab]}
-          onBack={tab !== 'home' ? undefined : handleBack}
-          right={rotateBtn}
-        />
+        {tab === 'home'
+          ? <KHeader onMenuPress={() => setMenuOpen(true)} onRefreshPress={toggleOrientation} />
+          : <Header title={titles[tab]} onBack={backToHome} left={menuBtn} right={rotateBtn} />
+        }
         {body[tab]}
+        <Modal visible={menuOpen} transparent animationType="fade" onRequestClose={() => setMenuOpen(false)}>
+          <Pressable style={{ flex: 1, flexDirection: 'row' }} onPress={() => setMenuOpen(false)}>
+            <Pressable style={{ width: 260, backgroundColor: C.navy, paddingTop: 48, paddingHorizontal: 0 }} onPress={() => {}}>
+              <Text style={{ color: C.gold, fontSize: 20, fontWeight: '800', paddingHorizontal: 20, marginBottom: 18 }}>Kuber Gold Loan</Text>
+              {TABS.map(([k, n]) => (
+                <React.Fragment key={k}>
+                  <TouchableOpacity onPress={() => { setTab(k); setMenuOpen(false); }}
+                    style={{ paddingVertical: 14, paddingHorizontal: 20, backgroundColor: tab === k ? C.navy2 : 'transparent', borderLeftWidth: tab === k ? 4 : 0, borderLeftColor: C.gold }}>
+                    <Text style={{ color: tab === k ? C.gold : '#fff', fontSize: 15, fontWeight: tab === k ? '700' : '400' }}>{n}</Text>
+                  </TouchableOpacity>
+                  {k === 'home' && (
+                    <TouchableOpacity onPress={() => { setSub({ name: 'customerProfile' }); setMenuOpen(false); }}
+                      style={{ paddingVertical: 14, paddingHorizontal: 20 }}>
+                      <Text style={{ color: '#fff', fontSize: 15 }}>👤  Customer Profile</Text>
+                    </TouchableOpacity>
+                  )}
+                </React.Fragment>
+              ))}
+            </Pressable>
+            <View style={{ flex: 1, backgroundColor: '#0006' }} />
+          </Pressable>
+        </Modal>
       </>
     );
   }
@@ -131,25 +217,10 @@ export default function App() {
           <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: C.gold }} />
         </View>
       )}
-      <View style={{ flex: 1, width: '100%', maxWidth: landscape ? undefined : 720, alignSelf: 'center' }}>
+      <View style={{ flex: 1, width: '100%', maxWidth: landscape ? 1400 : 480, alignSelf: 'center' }}>
         {screen}
       </View>
-      {!sub && (
-        <View style={{ backgroundColor: '#fff', borderTopWidth: 1, borderColor: C.line, paddingBottom: Platform.OS === 'android' ? 8 : 0 }}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ flexDirection: 'row', minWidth: '100%' }}
-          >
-            {TABS.map(([k, n]) => (
-              <TouchableOpacity key={k} onPress={() => setTab(k)}
-                style={{ minWidth: 64, flex: 1, paddingVertical: 10, paddingHorizontal: 4, alignItems: 'center', borderTopWidth: 3, borderTopColor: tab === k ? C.gold : 'transparent' }}>
-                <Text numberOfLines={1} style={{ fontSize: 11, fontWeight: '700', color: tab === k ? C.navy : C.mute }}>{n}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
+
     </SafeAreaView>
   );
 }

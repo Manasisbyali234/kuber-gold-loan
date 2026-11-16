@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as FileSystem from 'expo-file-system';
 import { Platform } from 'react-native';
+import { buildSeedData } from './seed';
 
 const KEY = 'kuber_gold_loan_db_v1';
 export const LIMIT = Infinity;
@@ -29,7 +30,12 @@ export const emptyDb = () => ({
 export async function load() {
   try {
     const r = await AsyncStorage.getItem(KEY);
-    return r ? { ...emptyDb(), ...JSON.parse(r) } : emptyDb();
+    if (r) return { ...emptyDb(), ...JSON.parse(r) };
+    // First launch – seed with initial data
+    const seed = buildSeedData();
+    const db = { ...emptyDb(), ...seed };
+    await AsyncStorage.setItem(KEY, JSON.stringify(db));
+    return db;
   } catch (e) {
     console.warn('kuber: load failed', e);
     return emptyDb();
